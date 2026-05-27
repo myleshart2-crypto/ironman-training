@@ -2011,50 +2011,63 @@ function attemptLogin(){
 }
 
 function loginAs(u){
-  const col = COLORS[u.colorIdx%COLORS.length];
-  document.getElementById('dash-avatar').style.background=col.bg;
-  document.getElementById('dash-avatar').style.color=col.text;
-  document.getElementById('dash-avatar').textContent=u.name[0].toUpperCase();
-  document.getElementById('dash-name').textContent=u.name;
-  document.getElementById('welcome-msg').textContent=`Welcome back, ${u.name}!`;
-  document.getElementById('welcome-sub').textContent=`Race day: 25 October 2026 · ${weeksToRace()} weeks to go`;
+  try {
+    const col = COLORS[u.colorIdx%COLORS.length];
+    const setEl = (id, val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
+    const setStyle = (id, prop, val) => { const el=document.getElementById(id); if(el) el.style[prop]=val; };
 
-  // Stats
-  document.getElementById('ov-weeks').textContent=weeksToRace();
-  document.getElementById('ov-10k').textContent=`${u.tenKMins}:${String(u.tenKSecs).padStart(2,'0')}`;
-  document.getElementById('ov-run').textContent= u.runDist ? ({0:'Not running',5:'Up to 5km',10:'5–10km',15:'10–16km',21:'16km+'}[u.runDist]||'—') : (['0–10km','10–25km','25km+'][u.runVol]||'—');
-  document.getElementById('ov-bike').textContent= u.bikeDist ? ({0:'Not cycling',20:'<30km',50:'30–60km',80:'60–90km',100:'90km+'}[u.bikeDist]||'—') : (['0–30km','30–80km','80km+'][u.bikeVol]||'—');
+    setStyle('dash-avatar','background',col.bg);
+    setStyle('dash-avatar','color',col.text);
+    setEl('dash-avatar', u.name[0].toUpperCase());
+    setEl('dash-name', u.name);
+    setEl('welcome-msg', `Welcome back, ${u.name}!`);
+    setEl('welcome-sub', `Race day: 25 October 2026 · ${weeksToRace()} weeks to go`);
 
-  // Weight stat — show current or goal
-  const wtEl = document.getElementById('ov-weight');
-  if(u.trackWeight===false){
-    wtEl.textContent = '—';
-    wtEl.closest('.stat-card').querySelector('.sl').textContent='Weight tracking off';
-  } else if(u.wtTarget && u.weightGoal==='lose'){
-    wtEl.textContent = `${u.wtCurrent||u.weight}→${u.wtTarget}kg`;
-    wtEl.closest('.stat-card').querySelector('.sl').textContent='Weight goal';
-  } else {
-    wtEl.textContent = (u.wtCurrent||u.weight)+'kg';
-    wtEl.closest('.stat-card').querySelector('.sl').textContent='Starting weight';
+    // Stats
+    setEl('ov-weeks', weeksToRace());
+    setEl('ov-10k', `${u.tenKMins}:${String(u.tenKSecs||0).padStart(2,'0')}`);
+    setEl('ov-run', u.runDist ? ({0:'Not running',5:'Up to 5km',10:'5–10km',15:'10–16km',21:'16km+'}[u.runDist]||'—') : (['0–10km','10–25km','25km+'][u.runVol||0]||'—'));
+    setEl('ov-bike', u.bikeDist ? ({0:'Not cycling',20:'<30km',50:'30–60km',80:'60–90km',100:'90km+'}[u.bikeDist]||'—') : (['0–30km','30–80km','80km+'][u.bikeVol||0]||'—'));
+
+    // Weight stat
+    const wtEl = document.getElementById('ov-weight');
+    if(wtEl) {
+      if(u.trackWeight===false){
+        wtEl.textContent = '—';
+        const sl = wtEl.closest('.stat-card')?.querySelector('.sl');
+        if(sl) sl.textContent='Weight tracking off';
+      } else if(u.wtTarget && u.weightGoal==='lose'){
+        wtEl.textContent = `${u.wtCurrent||u.weight}→${u.wtTarget}kg`;
+        const sl = wtEl.closest('.stat-card')?.querySelector('.sl');
+        if(sl) sl.textContent='Weight goal';
+      } else {
+        wtEl.textContent = (u.wtCurrent||u.weight||'—')+'kg';
+        const sl = wtEl.closest('.stat-card')?.querySelector('.sl');
+        if(sl) sl.textContent='Starting weight';
+      }
+    }
+
+    // Show/hide weight nav button
+    const weightNavBtn = document.getElementById('weight-nav-btn');
+    if(weightNavBtn) weightNavBtn.style.display = u.trackWeight===false ? 'none' : '';
+
+    // Personalise weight page
+    personaliseWeightPage(u);
+
+    const planTextEl = document.getElementById('ov-plan-text');
+    if(u.planText && planTextEl) planTextEl.innerHTML=`<div class="ai-output">${u.planText}</div>`;
+
+    buildPaceZones(u);
+    buildPlanWeekSelector(u);
+    renderSquad(u);
+    initMealWeekSel();
+    renderOverviewWeek();
+    showScreen('dashboard');
+  } catch(err) {
+    console.error('loginAs error:', err);
+    // Still try to show dashboard even if something failed
+    try { showScreen('dashboard'); } catch(e) {}
   }
-
-  // Show/hide weight nav button based on preference
-  const weightNavBtn = document.getElementById('weight-nav-btn');
-  if(weightNavBtn){
-    weightNavBtn.style.display = u.trackWeight===false ? 'none' : '';
-  }
-
-  // Personalise weight page goal section
-  personaliseWeightPage(u);
-
-  if(u.planText) document.getElementById('ov-plan-text').innerHTML=`<div class="ai-output">${u.planText}</div>`;
-
-  buildPaceZones(u);
-  buildPlanWeekSelector(u);
-  renderSquad(u);
-  initMealWeekSel();
-  renderOverviewWeek();
-  showScreen('dashboard');
 }
 
 function logout(){ clearSession(); selectedUserId=null; renderUserCards(); document.getElementById('pin-section').style.display='none'; showScreen('login'); }
@@ -2616,61 +2629,61 @@ function toggleInjury(val, el){
 
 // ── FINISH — create user ──
 function wizFinish(){
-  const users=getUsers();
-  const id=wizData.name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
-  const colorIdx=users.length%COLORS.length;
+  try {
+    const users=getUsers();
+    const id=wizData.name.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
+    const colorIdx=users.length%COLORS.length;
 
-  const newUser={
-    id, colorIdx,
-    name:    wizData.name,
-    age:     wizData.age,
-    weight:  wizData.weight,
-    gender:  wizData.gender||'',
-    pin:     wizData.pin,
-    tenKMins:wizData.tenKMins,
-    tenKSecs:wizData.tenKSecs,
-    hmSecs:  wizData.hmSecs,
-    // Current volume
-    swimFreq:   wizData.swimFreq,
-    bikeFreq:   wizData.bikeFreq,
-    runFreq:    wizData.runFreq,
-    gymFreq:    wizData.gymFreq,
-    swimDist:   wizData.swimDist,
-    bikeDist:   wizData.bikeDist,
-    runDist:    wizData.runDist,
-    // Targets
-    swimTarget: wizData.swimTarget||2,
-    bikeTarget: wizData.bikeTarget||2,
-    runTarget:  wizData.runTarget||3,
-    gymTarget:  wizData.gymTarget||0,
-    // Schedule prefs
-    availDays:   wizData.availDays||[0,1,2,3,4,5,6],
-    maxWeekday:  wizData.maxWeekday||60,
-    maxRideHrs:  wizData.maxRideHrs||3,
-    maxRunHrs:   wizData.maxRunHrs||2,
-    longRideDay: wizData.longRideDay||'Saturday',
-    longRunDay:  wizData.longRunDay||'Sunday',
-    injuries:    wizData.injuries||[],
-    // Legacy fields
-    runVol: parseInt(wizData.runDist||0)>=21?2:parseInt(wizData.runDist||0)>=10?1:0,
-    bikeVol: parseInt(wizData.bikeDist||0)>=80?2:parseInt(wizData.bikeDist||0)>=50?1:0,
-    swim: parseInt(wizData.swimDist||0)>=1500?'strong':parseInt(wizData.swimDist||0)>=800?'moderate':parseInt(wizData.swimDist||0)>=400?'basic':'none',
-    planGenerated:false, planText:'',
-    // Weight tracking
-    trackWeight:  wizData.trackWeight !== false, // default on unless explicitly declined
-    weightGoal:   wizData.weightGoal||null,
-    wtCurrent:    wizData.wtCurrent||wizData.weight,
-    wtTarget:     wizData.wtTarget||null,
-    wtDeadline:   wizData.wtDeadline||null,
-    createdAt:new Date().toISOString().split('T')[0],
-  };
+    const newUser={
+      id, colorIdx,
+      name:    wizData.name,
+      age:     wizData.age||30,
+      weight:  wizData.weight||80,
+      gender:  wizData.gender||'',
+      pin:     wizData.pin,
+      tenKMins:wizData.tenKMins||49,
+      tenKSecs:wizData.tenKSecs||0,
+      hmSecs:  wizData.hmSecs||6600,
+      swimFreq:   wizData.swimFreq||0,
+      bikeFreq:   wizData.bikeFreq||0,
+      runFreq:    wizData.runFreq||0,
+      gymFreq:    wizData.gymFreq||0,
+      swimDist:   wizData.swimDist||'0',
+      bikeDist:   wizData.bikeDist||'0',
+      runDist:    wizData.runDist||'0',
+      swimTarget: wizData.swimTarget||2,
+      bikeTarget: wizData.bikeTarget||2,
+      runTarget:  wizData.runTarget||3,
+      gymTarget:  wizData.gymTarget||0,
+      availDays:   wizData.availDays||[0,1,2,3,4,5,6],
+      maxWeekday:  wizData.maxWeekday||60,
+      maxRideHrs:  wizData.maxRideHrs||3,
+      maxRunHrs:   wizData.maxRunHrs||2,
+      longRideDay: wizData.longRideDay||'Saturday',
+      longRunDay:  wizData.longRunDay||'Sunday',
+      injuries:    wizData.injuries||[],
+      runVol: parseInt(wizData.runDist||0)>=21?2:parseInt(wizData.runDist||0)>=10?1:0,
+      bikeVol: parseInt(wizData.bikeDist||0)>=80?2:parseInt(wizData.bikeDist||0)>=50?1:0,
+      swim: parseInt(wizData.swimDist||0)>=1500?'strong':parseInt(wizData.swimDist||0)>=800?'moderate':parseInt(wizData.swimDist||0)>=400?'basic':'none',
+      planGenerated:false, planText:'',
+      trackWeight:  wizData.trackWeight !== false,
+      weightGoal:   wizData.weightGoal||null,
+      wtCurrent:    wizData.wtCurrent||wizData.weight||80,
+      wtTarget:     wizData.wtTarget||null,
+      wtDeadline:   wizData.wtDeadline||null,
+      createdAt:    new Date().toISOString().split('T')[0],
+    };
 
-  users.push(newUser);
-  saveUsers(users);
-  saveSession({id});
-  wizData={};
-  wizStep=0;
-  loginAs(newUser);
+    users.push(newUser);
+    saveUsers(users);
+    saveSession({id});
+    wizData={};
+    wizStep=0;
+    loginAs(newUser);
+  } catch(err) {
+    console.error('wizFinish error:', err);
+    document.getElementById('wiz-err').textContent = 'Something went wrong: ' + err.message + '. Please try again.';
+  }
 }
 
 // ── INIT wizard on screen show ──
